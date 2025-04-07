@@ -1,0 +1,207 @@
+import React, { useEffect, useState } from 'react'
+import { Input } from "@/components/ui/input"
+import { AI_PROMPT, SelectBudgetOptions, SelectTravelsList } from '@/constants/options'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner';
+import { chatSession } from '@/service/AImodel';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/service/firebaseConfig';
+
+function CreateTrip() {
+
+  const [formData, setFormData] = useState([]);
+
+  const handleInputChange = (name, value) => {
+    setFormData({
+      ...formData,
+      [name]: value
+    })
+  }
+
+  useEffect(() => {
+    console.log(formData)
+  }, [formData])
+
+  const SaveAiTrip = async (tripData) => {
+    try {
+      // Check if user is logged in
+      if (!currentUser) {
+        toast.error("Please login to save your trip");
+        return null;
+      }
+  
+      const docId = Date.now().toString();
+      await setDoc(doc(db, "AITrips", docId), {
+        userSelection: formData,
+        tripData: tripData,
+        userId: currentUser.id,
+        userEmail: currentUser.email,
+        userName: currentUser.name,
+        createdAt: new Date()
+      });
+      
+      toast.success("Trip saved successfully!");
+      return docId;
+    } catch (error) {
+      console.error("Error saving trip:", error);
+      toast.error("Failed to save trip");
+      return null;
+    }
+  }
+
+const OnGenerateTrip = async () => {
+  if (formData?.noOfDays >= 5 && !formData?.location || !formData?.budget || !formData?.traveler) {
+    toast("Please fill all details")
+    return;
+  }
+
+  const FINAL_PROMPT = AI_PROMPT
+    .replace('{location}', formData?.location)
+    .replace('{totalDays}', formData?.noOfDays)
+    .replace('{traveler}', formData?.traveler)
+    .replace('{budget}', formData?.budget)
+    .replace('{totalDays}', formData?.noOfDays)
+
+  console.log(FINAL_PROMPT);
+
+  const result = await chatSession.sendMessage(FINAL_PROMPT)
+
+  console.log(result?.response?.text())
+
+}
+
+// const SaveAiTrip = async (TripData) => {
+//   // Add a new document in collection "cities"
+//   const user = JSON.parse(localStorage.getItem('user'));
+//   const docId = Date.now().toString()
+//   await setDoc(doc(db, "AITrips", docId), {
+//     userSelection: formData,
+//     tripData: TripData,
+//   });
+// }
+
+return (
+  <div className='sm:px-10 md:px-32 lg:px-32 xl:px-10 px-5 mt-10 '>
+    <h2 className='font-bold text-3xl'>Tell us your travel preferences 🏕️🌴</h2>
+    <p className=' mt-3 text-gray-500 text-xl'>Just provide some basic information, and our trip planner will generate
+      a customized itinerary based on your preferences.</p>
+
+    <div className='mt-20 flex flex-col gap-9'>
+      <div>
+        <h2 className='text-xl my-3 font-medium'>What is destination of choice?</h2>
+        <Input type="text" name="destination" placeholder="Enter your desired destination.."
+          onChange={(e) => handleInputChange('location', e.target.value)} />
+      </div>
+
+      <div>
+        <h2 className='text-xl my-3 font-medium'>How many days are you planning your trip</h2>
+        <Input type="number" name="days" placeholder="Ex.3" min="1"
+          onChange={(e) => handleInputChange('noOfDays', e.target.value)}
+        />
+      </div>
+
+      <div>
+        <h2 className='text-xl my-3 font-medium'>What is Your Budget?</h2>
+        <div className='grid grid-cols-3 gap-5 mt-5'>
+          {SelectBudgetOptions.map((item, index) => (
+            <div key={index}
+              onClick={() => handleInputChange('budget', item.title)}
+              className={`p-4 border rounded-lg hover:shadow-lg justify-items-center cursor-pointer ${formData?.budget == item.title && 'shadow-lg border-black'}`}>
+              <h2 className='text-4xl'>{item.icon}</h2>
+              <h2 className='font-bold text-lg'>{item.title}</h2>
+              <h2 className='text-sm text-gray-500'>{item.desc}</h2>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className='text-xl my-3 font-medium'>Who do you plan on travelling with on your next adventure?</h2>
+        <div className='grid grid-cols-3 gap-5 mt-5'>
+          {SelectTravelsList.map((item, index) => (
+            <div key={index}
+              onClick={() => handleInputChange('traveler', item.people)}
+              className={`p-4 border rounded-lg hover:shadow-lg justify-items-center cursor-pointer ${formData?.traveler == item.people && 'shadow-lg border-black'}`}>
+              <h2 className='text-4xl'>{item.icon}</h2>
+              <h2 className='font-bold text-lg'>{item.title}</h2>
+              <h2 className='text-sm text-gray-500'>{item.desc}</h2>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+
+    <div className='p-20 justify-end flex'>
+      <Button onClick={OnGenerateTrip}>Generate Trip</Button>
+    </div>
+  </div>
+)
+}
+
+export default CreateTrip
+
+
+
+
+//PlacesToVisit.jsx:----------
+
+import React from 'react'
+
+function PlacesToVisit({ trip }) {
+  const dayKeys = trip?.tripData?.itinerary
+    ? Object.keys(trip.tripData.itinerary)
+      .filter(key => key.startsWith('day'))
+      .sort((a, b) => {
+        // Extract numeric part and convert to number
+        const numA = parseInt(a.replace('day', ''));
+        const numB = parseInt(b.replace('day', ''));
+        return numA - numB;
+      })
+    : [];
+
+  return (
+    // <div>
+    //   <h2 className='font-bold text-lg'>Places to visit</h2>
+    //   <div>
+    //     {trip.tripData?.itinerary.map((item, index)=>(
+    //         <div>
+    //             <h2>{item.day1}</h2>
+    //         </div>
+    //     ))}
+    //   </div>
+    // </div>
+    <div>
+      <h2 className='font-bold text-lg'>Places to visit</h2>
+
+      {dayKeys.map((dayKey) => (
+        <div key={dayKey} className='mb-6'>
+          <h3 className='font-semibold text-md'>{dayKey.toUpperCase()}</h3>
+          {trip.tripData.itinerary[dayKey].map((place, index) => (
+            <div key={`${dayKey}-place-${index}`} className='mb-6 bg-white shadow-md rounded-lg overflow-hidden transition-shadow duration-300 hover:shadow-xl'>
+              <h4 className='font-semibold text-xl text-gray-800 px-4 pt-4 pb-2 border-b border-gray-200'>{place.placeName}</h4>
+              <img
+                src="/placeholder.png"
+                alt={place.placeName}
+                className='h-64 md:h-80 w-full object-cover hover:scale-105 transition-transform duration-300'
+              />
+              <div className='p-4 space-y-2 text-gray-700'>
+                <p className='text-sm'>
+                  <span className='font-medium text-gray-900'>Details:</span> {place.placeDetails}
+                </p>
+                <p className='text-sm'>
+                  <span className='font-medium text-gray-900'>Time to Visit:</span> {place.timeToVisit}
+                </p>
+                <p className='text-sm'>
+                  <span className='font-medium text-gray-900'>Ticket Pricing:</span> {place.ticketPricing}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default PlacesToVisit
